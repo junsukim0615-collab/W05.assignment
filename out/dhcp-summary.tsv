@@ -1,0 +1,6 @@
+frame.number	frame.time_relative	ip.src	ip.dst	dhcp.option.dhcp	dhcp.option.ip_address_lease_time	dhcp.id	dhcp.ip.your	dhcp.flags.bc
+1	0.000000000	192.168.0.14	192.168.0.1	7		0x317aedd2	0.0.0.0	False
+2	0.847227500	0.0.0.0	255.255.255.255	1		0xd97f0f72	0.0.0.0	False
+3	1.017465500	192.168.0.1	255.255.255.255	2	7200	0xd97f0f72	192.168.0.14	False
+4	1.100992600	0.0.0.0	255.255.255.255	3		0xd97f0f72	0.0.0.0	False
+5	1.324729600	192.168.0.1	255.255.255.255	5	7200	0xd97f0f72	192.168.0.14	False
