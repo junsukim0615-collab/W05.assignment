@@ -1,0 +1,83 @@
+{
+  "python": "3.11.2",
+  "task1": {
+    "ranges": {
+      "10.0.0.0/30": [
+        "10.0.0.1",
+        "10.0.0.2",
+        "10.0.0.3"
+      ],
+      "10.0.0.0/31": [
+        null,
+        null,
+        "10.0.0.1"
+      ],
+      "10.0.0.1/32": [
+        null,
+        null,
+        "10.0.0.1"
+      ]
+    },
+    "matches_for_10.20.30.70": [
+      {
+        "cidr": "0.0.0.0/0",
+        "next_hop": "default-gw"
+      },
+      {
+        "cidr": "10.0.0.0/8",
+        "next_hop": "campus"
+      },
+      {
+        "cidr": "10.20.0.0/16",
+        "next_hop": "eng-building"
+      },
+      {
+        "cidr": "10.20.30.0/24",
+        "next_hop": "lab-floor"
+      },
+      {
+        "cidr": "10.20.30.64/26",
+        "next_hop": "lab-rack-2"
+      }
+    ],
+    "invalid_inputs_rejected": [
+      "0.0.0.0/33",
+      "0.0.0.0/-1",
+      "163.152.6.5/24",
+      "256.0.0.0/8"
+    ],
+    "duplicate_route_result": "last"
+  },
+  "task3": {
+    "routes": 5000,
+    "queries": 20000,
+    "route_counts_by_prefix": {
+      "24": 3034,
+      "22": 610,
+      "20": 505,
+      "16": 499,
+      "12": 235,
+      "8": 116,
+      "0": 1
+    },
+    "active_prefix_lengths": [
+      24,
+      22,
+      20,
+      16,
+      12,
+      8,
+      0
+    ],
+    "mean_hash_probes": 2.6129,
+    "max_hash_probes": 7,
+    "reachable_object_bytes": {
+      "LinearTable": 796297,
+      "YourTable": 652896
+    },
+    "memory_method": "Recursive sys.getsizeof, count shared references once per table; includes referenced integer/string objects, excludes runtime/class objects and peak allocation.",
+    "additional_queries": 1002,
+    "additional_wrong": 0
+  },
+  "dhcp_capture_sha256": "2a2e2d89eb073a1938440ec467a927a67a31803008b8caa0ad30fb8a68d4d5e2"
+}

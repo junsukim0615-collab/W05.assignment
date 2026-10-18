@@ -6,8 +6,8 @@ Textbook §4.3.2 (addressing, DHCP) and §4.3.3 (NAT).
 This is the hands-on task. It asks what address your machine has, what address
 the rest of the world sees, and why those two are usually different.
 
-    python3 task2_myaddr.py --collect     # gather what your OS will tell you
-    python3 task2_myaddr.py --report      # your analysis
+    python3 task2_myaddr.py --collect "network label"  # collect raw evidence
+    python3 task2_myaddr.py --report      # display the completed analysis
 
 Run it on **two networks**. Campus Wi-Fi and phone tethering behave differently
 here, and the difference is the lesson.
@@ -58,13 +58,17 @@ def collect(label):
     json.dump(all_records, open(path, "w"), indent=2)
     print(f"  public address seen from outside: {record['public']}")
     print(f"  -> out/addresses.json  ({len(all_records)} record(s))")
-    print("\n  Now read the raw output yourself and answer the questions in task2.md.")
-    print("  The script deliberately does not parse it for you.")
+    print("\n  Raw evidence saved. A new record requires updating out/report.md.")
+    print("  See docs/assignment/task2.md for the original assignment.")
 
 
 def report():
-    raise NotImplementedError(
-        "write out/report.md by hand, or generate it - see task2.md")
+    """Display the completed report without changing the measurement records."""
+    path = os.path.join(OUT, "report.md")
+    if not os.path.isfile(path):
+        raise SystemExit("Missing completed report: out/report.md")
+    with open(path, encoding="utf-8") as source:
+        print(source.read(), end="")
 
 
 if __name__ == "__main__":

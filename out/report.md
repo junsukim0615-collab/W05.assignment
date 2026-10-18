@@ -1,4 +1,10 @@
-# Week 5 — 주소, 서브넷, NAT 및 DHCP 분석
+# Task 2 실험 결과 보고서 — 주소, 서브넷, NAT 및 DHCP
+
+## 실험 결과 요약
+
+이 보고서는 본 컴퓨터의 두 네트워크 수집 기록과 실제 DHCP 패킷을 근거로 작성한 분석 결과다. IPv4 주소·게이트웨이·공인 주소가 모두 달라졌고, 두 마스크는 /24로 같았다. DHCP 프레임 2–5에서 동일한 Transaction ID의 DORA를 확인했으며, 서버가 제안하고 승인한 임대 시간은 7200초였다.
+
+원본 측정 자료: [addresses.json](addresses.json) · [dhcp.pcapng](dhcp.pcapng) · [패킷별 추출값](dhcp-summary.tsv). 프로그램 검증 결과: [validation.txt](validation.txt).
 
 ## 측정 자료
 
@@ -74,7 +80,13 @@ Discover 때와 달리 서버는 교환 과정에서 클라이언트의 하드�
 
 이번 실제 캡처에서는 Ack도 `255.255.255.255`로 브로드캐스트됐다. DORA의 broadcast 플래그는 0이었지만 서버는 브로드캐스트로 응답했다. 따라서 이 캡처를 유니캐스트 Ack의 사례라고 주장하지 않는다.
 
+## 결론
+
+두 네트워크는 각각 `172.16.1.0/24`, `192.168.0.0/24`로 확인되었다. 수식으로 계산한 호스트 범위가 Task 1 함수의 반환값과 일치했고, 게이트웨이도 각 범위 안에 있었다. 외부에서 본 주소는 로컬 사설 주소와 달랐다. 이로부터 일반적인 직접 IPv4 접속에서는 최소 한 단계의 NAT를 설명할 수 있지만, 상위 라우터를 관측하지 않았으므로 정확한 단계 수는 확정하지 않았다.
+
+직접 수집한 DHCP 캡처에서 Discover의 `0.0.0.0 → 255.255.255.255`, Offer/Ack의 임대 시간 7200초를 확인했다. 이번 Ack도 브로드캐스트였으므로 실제 관측과 유니캐스트가 가능한 일반 조건을 구분해 설명했다.
+
 ## 참고 자료
 
 - [과제 Task 2](https://github.com/codingchild2424/2026-lecture-network-practice/blob/main/w05-ip-nat/task2.md)
-- 근거 파일: `addresses.json`, `dhcp.pcapng`, `dhcp-summary.tsv`
+- 근거 파일: [addresses.json](addresses.json), [dhcp.pcapng](dhcp.pcapng), [dhcp-summary.tsv](dhcp-summary.tsv)

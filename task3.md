@@ -1,70 +1,58 @@
-# Task 3 · Make Longest-Prefix Match Fast
+# Task 3 성능 개선 결과 보고서
 
-**Files** — `task3_lpm.py` · harness `bench.py` (**do not edit the harness**)
-**Theory** — §4.3.3 forwarding
-**Kind** — improvement · fully synthetic, runs anywhere
+구현 파일: [task3_lpm.py](task3_lpm.py) · [벤치마크 원본 출력](out/bench.txt) · [추가 분석값](out/implementation-checks.json)
 
----
+## 구현한 방법
 
-## What you are given
+YourTable은 prefix 길이별로 네트워크 주소와 next hop을 딕셔너리에 저장한다. add를 호출하면 해당 길이의 그룹에 경로를 추가하고, 새 길이가 등장한 경우에만 마스크 목록을 긴 prefix부터 짧은 prefix 순서로 갱신한다. lookup은 목적지와 마스크를 AND한 값을 그 길이의 딕셔너리에서 찾아, 처음 일치하는 next hop을 반환한다.
 
-`LinearTable` is correct, and it is probably what you wrote in Task 1: keep the
-prefixes in a list, check every one, remember the longest match. On six entries
-that is fine. A real router holds close to a million and has to answer while the
-packet is still in the buffer.
+긴 prefix부터 확인하므로 첫 일치가 최장 prefix 매칭이다. 기본 경로 /0은 마지막에 확인한다. 동일한 네트워크/prefix를 중복 추가하면 setdefault를 사용해 처음 추가한 next hop을 유지한다. 이는 제공된 LinearTable의 동작과 일치하며, Task 1에서 선택한 마지막 추가값 우선 정책과는 구분된다.
 
-```bash
-python3 bench.py            # baseline only, about 7 seconds
-python3 bench.py --yours
-```
+## 실제 성능 결과
 
-The harness builds a synthetic table shaped like a real one — mostly `/24`s with
-a tail of shorter aggregates and a default route — and asks 20,000 questions,
-85% of them inside known prefixes, the way traffic actually falls.
+제공된 bench.py는 수정하지 않았다. seed 246으로 생성한 5,000개 경로에 대해 20,000개 질의를 실행했다.
 
-**Where the baseline lands:**
+| 구현 | 조회 시간 | 초당 조회 수 | 기준과 다른 답 |
+|---|---:|---:|---:|
+| LinearTable | 14.848초 | 1,347 | 기준 |
+| YourTable | 약 0.011초 | 1,806,636 | 0개 |
 
-```
-  baseline   build   0.00s   lookup   6.715s        2,978 lookups/s
-```
+벤치마크가 내부 정밀도로 계산해 출력한 속도 향상은 **1341.2배**, 등급은 **strong**이었다. 표의 시간은 출력에서 반올림된 값이므로 표에 표시된 숫자를 나눈 값과 소폭 다를 수 있다. 전체 테스트의 별도 실행에서는 1705.9배가 측정됐다. 두 값은 서로 다른 실행의 결과이며 컴퓨터 부하에 따라 달라진다. 1341.2배는 [bench.txt](out/bench.txt), 1705.9배는 [validation.txt](out/validation.txt)의 기록이다.
 
-A 1 Gbps link delivers on the order of a million small packets a second. The
-baseline manages three thousand.
+## 실제로 줄어든 작업량
 
-## Requirements
+이번 합성 데이터에 존재하는 prefix 길이는 7개였다.
 
-| # | Requirement |
-|---|---|
-| R1 | `YourTable` exposes `add(network, prefix_len, next_hop)` and `lookup(address)` |
-| R2 | `bench.py` unmodified |
-| R3 | **Every answer identical to the linear table.** The harness checks all 20,000 |
-| R4 | Faster than the baseline |
-| R5 | In `observation.md`: what bounds your lookup now? Not "it is faster" — what is the work proportional to? |
+| prefix | 경로 개수 |
+|---|---:|
+| /24 | 3034 |
+| /22 | 610 |
+| /20 | 505 |
+| /16 | 499 |
+| /12 | 235 |
+| /8 | 116 |
+| /0 | 1 |
+| 합계 | 5000 |
 
-R3 is not a formality. A fast router that forwards to the wrong next hop is not
-a router, it is an outage.
+기준 구현은 매 질의마다 5000개 경로를 비교한다. 개선 구현에 같은 20000개 질의를 적용해 확인한 해시 조회 횟수는 평균 **2.6129회**, 최대 **7회**였다. 이 횟수 분석은 벤치마크 코드를 수정하지 않고 별도로 수행했다.
 
-## Grading
+시간 복잡도는 경로 수 N이 아니라 존재하는 prefix 길이 수 L에 비례하는 평균 O(L)이다. 해시 조회의 평균 O(1)을 가정하며, IPv4에서는 L ≤ 33이다. 이번 데이터의 최악 조회량이 7회라고 해서 모든 입력에서 7회로 고정되는 것은 아니다. /1부터 /32까지 추가되면 최대 33개 길이를 확인할 수 있다.
 
-| | Requirement |
-|---|---|
-| pass | R1–R4, more than 2× |
-| good | ≥ **100×** |
-| **strong** | ≥ **1000×** |
+## 메모리 비용
 
-Both of those are reachable. Two directions:
+Python 3.11.2에서 같은 5000개 경로로 만든 테이블의 객체 크기를 sys.getsizeof로 재귀 합산했다. 한 테이블 내부의 공유 참조는 한 번만 세었다.
 
-- **group by prefix length.** There are only 33 possible lengths, and you can ask
-  them in an order that lets you stop at the first hit
-- **walk the address one bit at a time.** Each bit takes you to at most one child,
-  so the work is bounded by the address width, not by the table size
+| 구현 | 참조하는 Python 객체 크기 합계 |
+|---|---:|
+| LinearTable | 796,297 bytes |
+| YourTable | 652,896 bytes |
 
-The second is what hardware does. The first is easier — and in Python it is also
-faster, which is worth a sentence in `observation.md` about why the textbook
-answer and the fast answer are not the same answer here.
+이는 테이블 인스턴스, 컨테이너, 참조하는 정수·문자열 크기의 추정치다. Python 런타임, 클래스 객체, 할당 과정의 최대 메모리나 프로세스 전체 메모리를 측정한 값은 아니다. 이번 데이터에서는 기준 구현의 경로별 튜플 저장 비용 때문에 개선 구현의 합계가 더 작게 나왔다. 일반적인 공간 복잡도는 두 구현 모두 O(N)이고, 개선 구현에는 길이별 딕셔너리와 최대 33개의 마스크/참조가 추가로 필요하다.
 
-## What to write in `observation.md`
+## 정확성 검증 및 해석
 
-- Which structure you chose, and what it cost in memory
-- R5: what your lookup time is now proportional to
-- Why the bit-walk is what hardware builds even when a hash table beats it in Python
+공식 20000개 질의에서 오답은 0개였다. 추가로 빈 테이블, /0부터 /32까지 모든 길이, 중복 prefix, 0과 0xFFFFFFFF를 포함한 1002개 주소를 기준 구현과 비교해 모두 일치했다.
+
+비트 트라이는 IPv4에서 최대 32단계라는 예측 가능한 탐색 구조를 가지므로 하드웨어 파이프라인에 적합하다. Python에서는 딕셔너리 조회가 내부 C 코드에서 수행되는 반면 비트마다 Python 객체를 따라가는 반복에는 실행 비용이 든다. 이번 실험에서는 prefix별 해시 테이블만 구현해 선형 탐색과 비교했으므로, 트라이보다 얼마나 빠른지는 직접 측정한 결과가 아니다.
+
+결과적으로 기준과 동일한 답을 유지하면서 경로 전체 순회를 prefix 길이별 조회로 바꾸어 요구된 속도 개선을 달성했다.

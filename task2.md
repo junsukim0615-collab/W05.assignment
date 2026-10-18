@@ -1,84 +1,94 @@
-# Task 2 · Where Exactly Are You on the Internet?
+# Task 2 실험 결과 보고서 — 주소, 서브넷, NAT 및 DHCP
 
-**Files** — `task2_myaddr.py`, and a capture you take yourself
-**Theory** — §4.3.2 addressing and DHCP, §4.3.3 NAT
-**Kind** — **hands-on. This one cannot be done from code alone.**
+제출 파일: [out/report.md](out/report.md). 아래는 같은 분석 내용을 저장소 루트에서 읽을 수 있도록 수록한 보고서다.
 
----
+## 실험 결과 요약
 
-## Why this task exists
+이 보고서는 본 컴퓨터의 두 네트워크 수집 기록과 실제 DHCP 패킷을 근거로 작성한 분석 결과다. IPv4 주소·게이트웨이·공인 주소가 모두 달라졌고, 두 마스크는 /24로 같았다. DHCP 프레임 2–5에서 동일한 Transaction ID의 DORA를 확인했으며, 서버가 제안하고 승인한 임대 시간은 7200초였다.
 
-Task 1 and Task 3 are arithmetic. This one is about the address **your machine
-actually holds right now**, which nobody else has and which will be different
-tomorrow.
+원본 측정 자료: [addresses.json](out/addresses.json) · [dhcp.pcapng](out/dhcp.pcapng) · [패킷별 추출값](out/dhcp-summary.tsv). 프로그램 검증 결과: [validation.txt](out/validation.txt).
 
-## Part A · Your address, by hand
+## 측정 자료
 
-```bash
-python3 task2_myaddr.py --collect "campus wifi"
+본 컴퓨터에서 수집한 `addresses.json`의 두 기록과 직접 캡처한 `dhcp.pcapng`를 분석했다. 첫 기록은 2026-09-29에 수집했고, 두 번째 기록과 DHCP 캡처는 2026-10-19에 수행했다. 네트워크의 실제 SSID나 장소 이름은 확인하지 않았으므로 수집 라벨로 구분한다. VMware 가상 어댑터가 아니라 기본 경로가 연결된 Wi-Fi 인터페이스를 비교했다.
+
+| 항목 | network-1 | network-2-2026-10-19 |
+|---|---|---|
+| Wi-Fi IPv4 주소 | 172.16.1.29 | 192.168.0.14 |
+| 서브넷 마스크 | 255.255.255.0 (/24) | 255.255.255.0 (/24) |
+| 네트워크 주소 | 172.16.1.0 | 192.168.0.0 |
+| 사용 가능한 첫 주소 | 172.16.1.1 | 192.168.0.1 |
+| 사용 가능한 마지막 주소 | 172.16.1.254 | 192.168.0.254 |
+| 브로드캐스트 주소 | 172.16.1.255 | 192.168.0.255 |
+| 기본 게이트웨이 | 172.16.1.1 | 192.168.0.1 |
+| 외부 서비스가 관측한 공인 IPv4 | 163.152.233.1 | 59.27.56.98 |
+
+## A2. 서브넷 범위 계산과 Task 1 비교
+
+마스크 `255.255.255.0`의 이진수는 `11111111.11111111.11111111.00000000`이다. 따라서 네트워크 비트 24개와 호스트 비트 8개로 이루어지며, 주소 수는 2^8 = 256개다. 일반적인 /24에서 네트워크 주소와 브로드캐스트 주소를 제외하면 사용 가능한 호스트 주소는 254개다.
+
+- network-1: `172.16.1.29 AND 255.255.255.0 = 172.16.1.0`. 마지막 옥텟 29는 `00011101`이고 호스트 비트를 모두 0으로 만들면 0, 모두 1로 만들면 255가 된다. 따라서 호스트 범위는 `172.16.1.1–172.16.1.254`, 브로드캐스트는 `172.16.1.255`다.
+- network-2: `192.168.0.14 AND 255.255.255.0 = 192.168.0.0`. 마지막 옥텟 14는 `00001110`이다. 같은 계산으로 호스트 범위는 `192.168.0.1–192.168.0.254`, 브로드캐스트는 `192.168.0.255`다.
+
+Task 1의 함수를 실제 실행한 결과는 각각 다음과 같으며 위 계산과 일치했다.
+
+```text
+network_range('172.16.1.0/24')
+('172.16.1.1', '172.16.1.254', '172.16.1.255')
+network_range('192.168.0.0/24')
+('192.168.0.1', '192.168.0.254', '192.168.0.255')
 ```
 
-The script dumps raw `ifconfig` / `ip addr` / `ipconfig` output and asks the
-outside world what address it sees. **It deliberately does not parse any of it.**
+## A3. 기본 게이트웨이
 
-| # | Requirement |
-|---|---|
-| A1 | Your interface address and mask, read off the raw output yourself |
-| A2 | The subnet's range, **computed by hand**, then checked against your Task 1 `network_range` |
-| A3 | Your default gateway, and whether it is inside that range. Say why it has to be |
-| A4 | The public address the outside world saw |
-| A5 | Is A1 private (RFC 1918) and A4 public? If they differ, **how many layers of NAT** are you behind — and how would you tell the difference between one and two? |
+두 게이트웨이 모두 각 /24 호스트 범위 안에 있다. `route print`의 `0.0.0.0/0` 경로도 각각 이 게이트웨이를 next hop으로 지정한다. 이 실습처럼 일반적인 이더넷/Wi-Fi 환경에서 호스트는 외부 목적지로 보낼 프레임을 게이트웨이에 먼저 전달하므로, 게이트웨이는 로컬 링크에서 ARP로 접근할 수 있어야 한다. 특별한 on-link 경로나 점대점 구성 등은 별개의 경우다.
 
-A5 is the real question. If A1 is `10.x` and A4 is something else, there is at
-least one NAT. If A1 is `100.64.x` you have found carrier-grade NAT and there are
-two. Mobile networks often do this; campus networks sometimes do.
+## A4–A5. 공인 주소와 NAT
 
-## Part B · Two networks
+`172.16.1.29`는 RFC 1918의 `172.16.0.0/12`, `192.168.0.14`는 `192.168.0.0/16`에 속하는 사설 주소다. 외부 HTTPS 서비스가 관측한 주소는 각각 `163.152.233.1`, `59.27.56.98`로, 인터페이스 주소와 다르다. 일반적인 직접 IPv4 인터넷 접속이라는 전제에서는 두 환경 모두 최소 한 단계의 NAT가 있음을 뒷받침한다. 프록시/VPN 여부와 상위 라우터 설정은 조사하지 않았으므로 정확한 NAT 단계 수는 이 자료만으로 확정하지 않는다.
 
-Run `--collect` again with a different label on a **different network** —
-phone tethering is the easy one.
+한 단계와 두 단계를 구분하려면 공유기의 WAN 주소를 외부 관측 주소와 비교하고 상위 장비의 주소 변환 설정을 확인한다. 공유기 WAN에도 사설 주소 또는 `100.64.0.0/10`의 공유 주소가 있다면 상위 NAT 가능성이 있다. 다만 `100.64.0.0/10`은 RFC 1918 사설 주소가 아니며, 이 주소를 보았다는 사실만으로 NAT가 정확히 두 단계라고 단정할 수는 없다. traceroute의 사설 홉 개수도 NAT 개수와 같지 않다.
 
-| # | Requirement |
-|---|---|
-| B1 | Two labelled records in `out/addresses.json` |
-| B2 | Compare the two: private address, mask, gateway, public address |
-| B3 | Did the **public** address change? Did the **private** one? Explain both |
+## B3. 두 네트워크 비교
 
-## Part C · Catch DHCP in the act
+사설 IP는 `172.16.1.29`에서 `192.168.0.14`로, 기본 게이트웨이는 `172.16.1.1`에서 `192.168.0.1`로 바뀌었다. 서로 다른 로컬 서브넷에서 DHCP 주소를 받았기 때문이다. 마스크는 두 환경 모두 /24로 같지만, 이는 주소 공간의 크기가 같은 것이며 같은 네트워크라는 뜻은 아니다.
 
-A DHCP exchange happens when you **join** a network, so you have to catch it.
-Start Wireshark with capture filter `port 67 or port 68`, then disconnect and
-reconnect your Wi-Fi.
+공인 IP도 `163.152.233.1`에서 `59.27.56.98`로 바뀌어 외부로 나가는 주소가 달라졌음을 확인했다. 서로 다른 시점에 측정했으므로 공인 IP 변화에는 동적 할당의 영향도 있을 수 있으며, 공인 IP 변화만으로 장소나 통신사를 단정하지 않는다. 서로 다른 내부 서브넷·게이트웨이 및 외부 주소를 함께 비교했다.
 
-| # | Requirement |
-|---|---|
-| C1 | `out/dhcp.pcapng` contains the four messages: Discover, Offer, Request, Ack |
-| C2 | Report the source and destination addresses of **Discover**. One of them is strange — say why it has to be that |
-| C3 | Report the **lease time** the server offered |
-| C4 | Discover is broadcast, Ack may not be. Say what changed between them that makes that possible |
+## C1. 직접 캡처한 DHCP 교환
 
-C2 is the point. The client has no address yet, and it is asking for one. Look at
-what it puts in the source field, and what that forces about the destination.
+Wireshark의 dumpcap으로 Wi-Fi에서 `udp port 67 or udp port 68`만 35초간 캡처했다. 캡처 중 `ipconfig /release Wi-Fi`와 `ipconfig /renew Wi-Fi`로 주소를 재할당했다. 공식 예제 trace를 대신 사용하지 않았다.
 
-## Pass condition
+| 프레임 | 메시지 | 출발지 IPv4 | 목적지 IPv4 | Transaction ID | yiaddr | Lease time |
+|---|---|---|---|---|---|---|
+| 2 | Discover (1) | 0.0.0.0 | 255.255.255.255 | 0xd97f0f72 | 0.0.0.0 | — |
+| 3 | Offer (2) | 192.168.0.1 | 255.255.255.255 | 0xd97f0f72 | 192.168.0.14 | 7200초 |
+| 4 | Request (3) | 0.0.0.0 | 255.255.255.255 | 0xd97f0f72 | 0.0.0.0 | — |
+| 5 | Ack (5) | 192.168.0.1 | 255.255.255.255 | 0xd97f0f72 | 192.168.0.14 | 7200초 |
 
-`out/addresses.json` has two labels, `out/dhcp.pcapng` contains DORA, and
-`out/report.md` answers A2–A5, B3, C2–C4.
+프레임 1은 기존 주소를 반납한 DHCP Release다. 프레임 2–5의 Transaction ID가 같으므로 동일한 DORA 교환임을 확인했다.
 
-```bash
-python3 test_tasks.py --task 2
-```
+## C2. Discover의 주소
 
-## Path (B) · if capture is blocked
+Discover의 출발지는 `0.0.0.0`, 목적지는 `255.255.255.255`였다. 클라이언트는 아직 사용할 IPv4 주소를 할당받지 않아 출발지에 기존 주소를 사용하지 않는다. DHCP 서버의 주소도 모르므로 로컬 링크의 서버에 도달하도록 제한 브로드캐스트를 사용한다.
 
-- **Part C** — use the official **DHCP trace** in `traces/`. Answer C2–C4 from it,
-  and add: how long was that lease, and what happens at half of it?
-- **Parts A and B** still need your own machine. There is no substitute — if you
-  genuinely cannot get a second network, say so and compare with a classmate's
-  numbers instead, naming whose they are
+## C3. 임대 시간
 
-## What to write in `observation.md`
+Offer와 Ack의 DHCP 옵션 51에서 모두 `7200`초, 즉 2시간을 확인했다. 기존 `ipconfig`의 임대 시각 차이로 추정한 값이 아니라 캡처된 옵션 값이다. 기본 갱신 시점 T1은 임대 시간의 절반인 3600초이며, 이때 클라이언트는 임대 서버에 DHCPREQUEST를 보내 갱신을 시도한다. 서버가 T1 옵션을 별도로 지정하면 해당 값을 따른다.
 
-- How many NATs you are behind, and the evidence
-- What changed and what did not between your two networks, and why
-- The Discover source address, and why it could not be anything else
+## C4. Ack가 유니캐스트일 수 있는 이유와 이번 관측
+
+Discover 때와 달리 서버는 교환 과정에서 클라이언트의 하드웨어 주소와 제안/할당할 IP를 알고 있다. 클라이언트가 주소 설정 전에도 유니캐스트를 수신할 수 있고 broadcast 플래그 및 클라이언트 상태 등이 허용하면 해당 클라이언트로 Ack를 유니캐스트할 수 있다. 갱신 중에는 이미 유효한 IP를 사용하는 경우도 있다. Ack를 받기 전에 모든 클라이언트가 새 주소를 이미 설정했다고 해석해서는 안 된다.
+
+이번 실제 캡처에서는 Ack도 `255.255.255.255`로 브로드캐스트됐다. DORA의 broadcast 플래그는 0이었지만 서버는 브로드캐스트로 응답했다. 따라서 이 캡처를 유니캐스트 Ack의 사례라고 주장하지 않는다.
+
+## 결론
+
+두 네트워크는 각각 `172.16.1.0/24`, `192.168.0.0/24`로 확인되었다. 수식으로 계산한 호스트 범위가 Task 1 함수의 반환값과 일치했고, 게이트웨이도 각 범위 안에 있었다. 외부에서 본 주소는 로컬 사설 주소와 달랐다. 이로부터 일반적인 직접 IPv4 접속에서는 최소 한 단계의 NAT를 설명할 수 있지만, 상위 라우터를 관측하지 않았으므로 정확한 단계 수는 확정하지 않았다.
+
+직접 수집한 DHCP 캡처에서 Discover의 `0.0.0.0 → 255.255.255.255`, Offer/Ack의 임대 시간 7200초를 확인했다. 이번 Ack도 브로드캐스트였으므로 실제 관측과 유니캐스트가 가능한 일반 조건을 구분해 설명했다.
+
+## 참고 자료
+
+- [과제 Task 2](https://github.com/codingchild2424/2026-lecture-network-practice/blob/main/w05-ip-nat/task2.md)
+- 근거 파일: [addresses.json](out/addresses.json), [dhcp.pcapng](out/dhcp.pcapng), [dhcp-summary.tsv](out/dhcp-summary.tsv)
